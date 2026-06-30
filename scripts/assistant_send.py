@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 
@@ -24,6 +23,7 @@ def main() -> int:
     args = parser.parse_args()
 
     payload = json.loads(args.json)
+    mode = payload.get("mode") or "semi_auto"
     result = asyncio_run(
         send_reply_async(
             conversation_id=str(payload.get("conversation_id") or ""),
@@ -35,7 +35,9 @@ def main() -> int:
         )
     )
     print(json.dumps(result, ensure_ascii=False))
-    return 0 if result.get("ok", False) or result.get("filled") else 1
+    if mode == "auto":
+        return 0 if result.get("sent") else 1
+    return 0 if result.get("ok") else 1
 
 
 def asyncio_run(coro):

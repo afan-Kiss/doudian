@@ -281,7 +281,7 @@ async def wait_order_panel(page: Any, timeout_ms: int = 5000) -> bool:
 async def fetch_order_context(page: Any, conversation_id: str = "") -> dict[str, Any]:
     try:
         return await asyncio.wait_for(
-            _fetch_order_context_inner(page, conversation_id),
+            _fetch_order_context_inner(page, conversation_id, ui_fallback=True),
             timeout=25.0,
         )
     except asyncio.TimeoutError:
@@ -289,7 +289,36 @@ async def fetch_order_context(page: Any, conversation_id: str = "") -> dict[str,
         return _empty_order_context("none", "订单读取失败")
 
 
-async def _fetch_order_context_inner(page: Any, conversation_id: str = "") -> dict[str, Any]:
+async def fetch_order_context_protocol_only(
+    page: Any,
+    *,
+    conversation_id: str = "",
+    security_user_id: str = "",
+    conversation_short_id: str = "",
+) -> dict[str, Any]:
+    """Fetch order context via in-page fetch only (no DOM)."""
+    uid = security_user_id or parse_security_user_id(conversation_id)
+    if not uid:
+        return _empty_order_context("protocol", "缺少 security_user_id")
+    short_id = conversation_short_id or parse_conversation_short_id(conversation_id)
+    ctx = await fetch_orders_protocol(
+        page,
+        security_user_id=uid,
+        conversation_short_id=short_id,
+    )
+    expected_uid = parse_security_user_id(conversation_id)
+    ctx["security_user_id"] = uid
+    if expected_uid and uid and expected_uid != uid:
+        return _empty_order_context("mismatch", "订单上下文与当前会话不匹配")
+    return ctx
+
+
+async def _fetch_order_context_inner(
+    page: Any,
+    conversation_id: str = "",
+    *,
+    ui_fallback: bool = True,
+) -> dict[str, Any]:
     im = await find_im_frame(page)
     session = await _read_session_ids(im)
     expected_uid = parse_security_user_id(conversation_id or session.get("conversation_id") or "")
@@ -305,6 +334,9 @@ async def _fetch_order_context_inner(page: Any, conversation_id: str = "") -> di
         ctx["security_user_id"] = security_user_id
         if expected_uid and security_user_id and expected_uid != security_user_id:
             return _empty_order_context("mismatch", "订单上下文与当前会话不匹配")
+        return ctx
+
+    if not ui_fallback:
         return ctx
 
     dom_ctx = await read_orders_from_dom(page)

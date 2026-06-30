@@ -14,6 +14,7 @@ from src.cdp.live_dom_probe import live_dom_probe
 from src.cdp.page_session import PageSession
 from src.chat.hub import ChatHub
 from src.chat.send_service import send_text_message
+from src.reply.protocol_first_processor import build_protocol_context
 from src.sender.api_sender import APISender
 from src.sender.feige_navigator import FeigeNavigator
 from src.sender.reply_sender import send_reply_async
@@ -35,6 +36,17 @@ class AssistantSendRequest(BaseModel):
     contact_name: str | None = None
     text: str = Field(min_length=1)
     mode: Literal["manual", "semi_auto", "auto"] = "semi_auto"
+
+
+class ProtocolConversationRequest(BaseModel):
+    conversation_id: str = ""
+    customer_name: str = ""
+    security_user_id: str = ""
+    latest_customer_message_text: str = ""
+    has_unreplied_customer_message: bool = False
+    latest_customer_message_id: str = ""
+    latest_customer_message_time: str = ""
+    customer_hash: str = ""
 
 
 class ChatServerState:
@@ -236,6 +248,15 @@ def create_app(state: ChatServerState) -> FastAPI:
             "conversation_key": conversation_key,
             "messages": state.hub.list_messages(conversation_key),
         }
+
+    @app.post("/api/protocol-conversation")
+    async def protocol_conversation(body: ProtocolConversationRequest) -> dict[str, Any]:
+        async def _read(page: Any) -> dict[str, Any]:
+            conv = body.model_dump()
+            return await build_protocol_context(page, conv)
+
+        result, _rebounded = await state.session.with_page_retry(_read)
+        return result
 
     @app.post("/api/assistant-send")
     async def assistant_send(body: AssistantSendRequest) -> dict[str, Any]:

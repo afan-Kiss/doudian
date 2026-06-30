@@ -6,8 +6,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Awaitable
 
-from src.cdp.conversation_list import _scan_conversation_list_impl, _switch_conversation_impl
-from src.cdp.current_conversation import read_current_conversation
+from src.cdp.conversation_list import _scan_conversation_list_impl
 from src.cdp.order_context import fetch_order_context, parse_security_user_id
 from src.cdp.page_action_lock import page_action_lock
 from src.cdp.system_notice import is_system_notice_conversation
@@ -187,25 +186,41 @@ class MultiConversationDispatcher:
             "reason": "",
         }
         try:
+            from src.reply.protocol_first_processor import (
+                build_protocol_context,
+                process_conversation_ui_fallback,
+            )
+
             async with page_action_lock("process_conversation"):
                 page = await self.page_session.get_active_feige_page()
-                switched = await _switch_conversation_impl(
-                    page,
-                    cid,
-                    customer_name=buyer,
-                )
-                if not switched.get("verified"):
-                    record["result"] = "稍后重试"
-                    record["reason"] = "切换会话失败，稍后重试"
-                    self._append_record(record)
-                    return {"ok": False, "retry": True, "reason": record["reason"]}
 
-                detail = await read_current_conversation(page, self.hub)
+                protocol_ctx = await build_protocol_context(page, conv)
+                detail = protocol_ctx
+                ui_fallback = False
+
+                if protocol_ctx.get("needs_ui_fallback") or (
+                    protocol_ctx.get("should_reply")
+                    and not protocol_ctx.get("current_customer_question")
+                ):
+                    fallback = await process_conversation_ui_fallback(
+                        page, conv, hub=self.hub
+                    )
+                    if not fallback.get("ok"):
+                        record["result"] = "稍后重试" if fallback.get("retry") else "人工处理"
+                        record["reason"] = str(fallback.get("reason") or "ui_fallback_failed")
+                        if fallback.get("handoff"):
+                            self._handoff_ids.add(cid)
+                            self.status.handoff_count = len(self._handoff_ids)
+                        self._append_record(record)
+                        return fallback
+                    detail = fallback.get("detail") or protocol_ctx
+                    ui_fallback = True
+
                 if not detail.get("should_reply"):
                     record["result"] = "跳过"
                     record["reason"] = "无需回复"
                     self._append_record(record)
-                    return {"ok": True, "skipped": True}
+                    return {"ok": True, "skipped": True, "protocol_first": not ui_fallback}
 
                 order_ctx = detail.get("order_context") or {}
                 expected_uid = parse_security_user_id(cid)
@@ -230,9 +245,15 @@ class MultiConversationDispatcher:
                     return outcome
 
                 record["result"] = "已扫描"
-                record["reason"] = "等待助手发送"
+                record["reason"] = "protocol-first" if not ui_fallback else "ui-fallback"
                 self._append_record(record)
-                return {"ok": True, "scanned": True, "detail": detail}
+                return {
+                    "ok": True,
+                    "scanned": True,
+                    "detail": detail,
+                    "protocol_first": not ui_fallback,
+                    "ui_fallback": ui_fallback,
+                }
         finally:
             self.status.processing_buyer = ""
 

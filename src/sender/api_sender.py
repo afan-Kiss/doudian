@@ -11,6 +11,7 @@ from playwright.async_api import Page
 
 from src.sender.frame_context import find_im_frame
 from src.sender.page_ws_encoder import PageWsEncoder
+from src.sender.send_verifier import SendVerifier
 from src.sender.ws_frame_builder import WSFrameBuilder, read_varint
 
 
@@ -197,7 +198,7 @@ class APISender:
         if transport == "http":
             return await self._send_http(page, template, text, conversation_id)
         if transport == "websocket":
-            return await self._send_websocket(page, template, text, conversation_id)
+            return await self._send_websocket(page, template, text, conversation_id, im_frame=im_frame)
         return False
 
     async def _send_http(
@@ -228,9 +229,12 @@ class APISender:
         template: dict[str, Any],
         text: str,
         conversation_id: str | None,
+        im_frame: Any | None = None,
     ) -> bool:
         message_text = text or "你好"
-        im_frame = await find_im_frame(page)
+        im_frame = im_frame or await find_im_frame(page)
+        verifier = SendVerifier()
+        stats_before = await verifier.ws_send_stats(im_frame)
 
         sdk_result = await self.page_encoder.send_text(im_frame, message_text, conversation_id)
         if self._sdk_send_verified(sdk_result):
@@ -268,14 +272,35 @@ class APISender:
             SEND_PAYLOADS_JS,
             {"payloadsB64": payloads_b64, "wsUrlHints": list(WS_URL_HINTS)},
         )
-        if result:
-            self.last_send_detail = {
-                **self.last_send_detail,
-                "frame_count": result.get("total"),
-                "sent": result.get("sent"),
-                "warning": "signature_not_regenerated",
-            }
-        return bool(result and result.get("ok"))
+        if not (result and result.get("ok")):
+            self.last_send_mode = "ws_replay_failed"
+            return False
+
+        ack = await verifier.wait_for_server_ack(
+            im_frame,
+            int(stats_before.get("recvCount") or 0),
+            timeout_ms=8000,
+        )
+        visible = False
+        if not ack:
+            visible = await verifier.message_visible(page, message_text)
+
+        self.last_send_detail = {
+            **self.last_send_detail,
+            "frame_count": result.get("total"),
+            "sent": result.get("sent"),
+            "warning": "signature_not_regenerated",
+            "ack": bool(ack),
+            "dom_visible": visible,
+        }
+
+        if ack or visible:
+            self.last_send_mode = "ws_replay_verified"
+            return True
+
+        self.last_send_mode = "ws_replay_unverified"
+        self.last_send_detail["reason"] = "ws_replay_unverified"
+        return False
 
     def ws_replay_diagnostics(self, template: dict[str, Any] | None = None) -> str:
         template = template or self.load_template()

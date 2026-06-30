@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 import sys
 from pathlib import Path
@@ -36,10 +35,12 @@ async def _send_via_sdk(page: Any, text: str, conversation_id: str | None) -> di
     schema_dir = config["_capture_dir"] / "schema"
     sender = APISender(schema_dir)
     success = await sender.send(page, text, conversation_id or None)
+    detail = dict(sender.last_send_detail or {})
+    mode = str(sender.last_send_mode or detail.get("mode") or "")
     return {
         "ok": success,
-        "send_mode": sender.last_send_mode,
-        "detail": sender.last_send_detail or {},
+        "send_mode": mode,
+        "detail": detail,
     }
 
 
@@ -90,30 +91,31 @@ async def send_reply_async(
             return result
 
         sdk = await _send_via_sdk(page, text, conversation_id or None)
+        detail = sdk.get("detail") or {}
+        send_mode = str(sdk.get("send_mode") or detail.get("mode") or "")
+
         if sdk.get("ok"):
             result["sent"] = True
             result["filled"] = True
-            detail = sdk.get("detail") or {}
-            result["message_id"] = str(detail.get("messageId") or detail.get("mode") or "sent")
+            result["message_id"] = str(detail.get("messageId") or send_mode or "sent")
+            result["send_mode"] = send_mode
             return result
 
-        filled = await _fill_input(page, text)
-        result["filled"] = filled
-        result["ok"] = filled
-        result["degraded"] = True
-        result["error"] = str((sdk.get("detail") or {}).get("reason") or "send failed")
+        reason = str(detail.get("reason") or send_mode or "send failed")
+        if send_mode == "ws_replay_unverified" or reason == "ws_replay_unverified":
+            reason = "ws_replay_unverified"
+
+        result["ok"] = False
+        result["sent"] = False
+        result["filled"] = False
+        result["error"] = reason
+        result["send_mode"] = send_mode
+        logger.warning("auto send failed conversation=%s reason=%s", conversation_id[:32], reason)
         return result
     except Exception as exc:  # noqa: BLE001
         logger.exception("send_reply error")
         result["ok"] = False
+        result["sent"] = False
+        result["filled"] = False
         result["error"] = str(exc)
-        try:
-            if page and mode == "auto":
-                filled = await _fill_input(page, text)
-                if filled:
-                    result["filled"] = True
-                    result["degraded"] = True
-                    result["ok"] = True
-        except Exception:  # noqa: BLE001
-            pass
         return result
