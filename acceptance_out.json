@@ -1,0 +1,98 @@
+{
+  "state": {
+    "connected": true,
+    "logged_in": true,
+    "conversation_id": "AQCnSRsg6VjCVV6CzwN4oOAcHF9PP0l8Wt61aPf6eWv91CiWTitMouMi93A9JW_hl54iRJnOiiFe7Sfrh83xb6Nk:263636465::2:1:pigeon",
+    "customer_name": "",
+    "page_url": "https://im.jinritemai.com/pc_seller_v2/main/workspace?selfId=7649723789181673001",
+    "has_im": true
+  },
+  "dom_count": 12,
+  "sdk_count": 10,
+  "result_ok": true,
+  "error": null,
+  "recent_count": 11,
+  "question": "",
+  "message_sources": {
+    "sdk": 10,
+    "dom": 2,
+    "hook": 0,
+    "ws": 0,
+    "merged": 11
+  },
+  "profile": {
+    "sdk": "sdk-messagesByConversationId.map",
+    "title": "",
+    "list": "body",
+    "item": "msgItem",
+    "source": "dom"
+  },
+  "recent_messages": [
+    {
+      "role": "system",
+      "text": "您超时未回复，系统关闭会话",
+      "time": "",
+      "message_id": "1868473212443700"
+    },
+    {
+      "role": "service",
+      "text": "哈喽小青蛙～你发的这只手镯是有看中的地方吗？还是想了解圈口大小、玉质细节这些呀？😉",
+      "time": "",
+      "message_id": "1868472257776672"
+    },
+    {
+      "role": "service",
+      "text": "你好呀～今天有没有遇到什么有趣的事呀？或者对咱们家的玉镯有什么想问的吗？",
+      "time": "",
+      "message_id": "1868471292141616"
+    },
+    {
+      "role": "service",
+      "text": "哈喽小青蛙～你发的这只手镯是有看中的地方吗？还是想了解圈口大小或者玉质细节呀？😉",
+      "time": "",
+      "message_id": "1868471288340563"
+    },
+    {
+      "role": "customer",
+      "text": "你好",
+      "time": "",
+      "message_id": "1868471277033511"
+    },
+    {
+      "role": "system",
+      "text": "Hi，欢迎光临本店，请问有什么可以帮助您?",
+      "time": "",
+      "message_id": "1868471272006684"
+    },
+    {
+      "role": "system",
+      "text": "人工客服 饭饭 为您服务",
+      "time": "",
+      "message_id": "1868471273884672"
+    },
+    {
+      "role": "system",
+      "text": "客服饭饭接入",
+      "time": "",
+      "message_id": "1868471276230668"
+    },
+    {
+      "role": "customer",
+      "text": "9",
+      "time": "",
+      "message_id": "1868471270134796"
+    },
+    {
+      "role": "service",
+      "text": "6月20日 07:51",
+      "time": "",
+      "message_id": "dom:service:-267:6月20日 07:51"
+    },
+    {
+      "role": "service",
+      "text": "你好",
+      "time": "",
+      "message_id": "dom:service:50:你好"
+    }
+  ]
+}

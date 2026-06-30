@@ -1,0 +1,109 @@
+{
+  "actionNames": [],
+  "imNames": [
+    "onConversationChange",
+    "onSomeConversationsChange",
+    "createConversation",
+    "ensurePullTargetMessage",
+    "getConversation",
+    "getMessagesByConversation",
+    "createConversationWithLocalEmptyMsg",
+    "ensureConversation",
+    "getLatestMessageListByConversationId",
+    "pullConversations",
+    "updateConversationReadReceiptByBuyerId",
+    "chatWithUidOrOrderId",
+    "chatWithUid",
+    "pullServicingConversations",
+    "pullMessagesByConversationId",
+    "getMessagesByConversationId",
+    "sendCloseConversationByCustomer",
+    "pullCurrentConversationList",
+    "_getConversationIdByBuyerId",
+    "_forceChangeConversationCloseStatusLocal"
+  ],
+  "tries": {
+    "onConversationChange": {
+      "ok": false,
+      "error": "TypeError: Object prototype may only be an Object or null: AQCnSRsg6VjCVV6CzwN4oOAcHF9PP0l8Wt61aPf6e"
+    },
+    "onSomeConversationsChange": {
+      "ok": false,
+      "error": "TypeError: Object prototype may only be an Object or null: AQCnSRsg6VjCVV6CzwN4oOAcHF9PP0l8Wt61aPf6e"
+    },
+    "createConversation": {
+      "ok": false,
+      "error": "IMSDKError: message: \"create conversation failed\", inner error: \"IMSDKError: [0217827380594240000000"
+    },
+    "ensurePullTargetMessage": {
+      "ok": true,
+      "type": "undefined"
+    },
+    "getConversation": {
+      "ok": true,
+      "type": "object"
+    },
+    "getMessagesByConversation": {
+      "ok": true,
+      "type": "object"
+    },
+    "createConversationWithLocalEmptyMsg": {
+      "ok": false,
+      "error": "IMSDKError: message: \"create conversation failed\", inner error: \"IMSDKError: [0217827380594950000000"
+    },
+    "ensureConversation": {
+      "ok": true,
+      "type": "undefined"
+    },
+    "getLatestMessageListByConversationId": {
+      "ok": true,
+      "type": "undefined"
+    },
+    "pullConversations": {
+      "ok": true,
+      "type": "boolean"
+    },
+    "updateConversationReadReceiptByBuyerId": {
+      "ok": false,
+      "error": "IMSDKError: message: \"create conversation failed\", inner error: \"IMSDKError: [0217827380600000000000"
+    },
+    "chatWithUidOrOrderId": {
+      "ok": true,
+      "type": "undefined"
+    },
+    "chatWithUid": {
+      "ok": true,
+      "type": "string"
+    },
+    "pullServicingConversations": {
+      "ok": true,
+      "type": "undefined"
+    },
+    "pullMessagesByConversationId": {
+      "ok": true,
+      "type": "undefined"
+    },
+    "getMessagesByConversationId": {
+      "ok": true,
+      "type": "undefined"
+    },
+    "sendCloseConversationByCustomer": {
+      "ok": true,
+      "type": "object"
+    },
+    "pullCurrentConversationList": {
+      "ok": true,
+      "type": "object"
+    },
+    "_getConversationIdByBuyerId": {
+      "ok": true,
+      "type": "string"
+    },
+    "_forceChangeConversationCloseStatusLocal": {
+      "ok": true,
+      "type": "undefined"
+    }
+  },
+  "convId": "AQCnSRsg6VjCVV6CzwN4oOAcHF9PP0l8Wt61aPf6eWv91CiWTitMouM",
+  "msgLen": 0
+}

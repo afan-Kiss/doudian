@@ -1,0 +1,99 @@
+{
+  "convId": "AQDzAAVCcdsDV2NSAiScd3pOHF9PP0l8Wt61aPf6eWv91B8UiF",
+  "entries": [
+    {
+      "key": "AQCnSRsg6VjCVV6CzwN4oOAcHF9PP0l8Wt61aPf6eWv91",
+      "valType": "object",
+      "objKeys": [
+        "id",
+        "map",
+        "referenceMessageMap",
+        "serviceReadIndex",
+        "buyerReadIndex"
+      ],
+      "innerSize": 9,
+      "innerKeys": [
+        "952F9217-A8C5-4A73-B368-C19CB34422D4",
+        "7653258303799117096_CsAssign_",
+        "7653258303799117096_Welcome_"
+      ],
+      "innerSample": [
+        {
+          "content": "您超时未回复，系统关闭会话",
+          "sender_role": "3"
+        },
+        {
+          "content": "哈喽小青蛙～你发的这只手镯是有看中的地方吗？还是想了解圈口大小、玉质细节这些呀？😉",
+          "sender_role": "2"
+        },
+        {
+          "content": "您超时未回复，系统关闭会话",
+          "sender_role": "3"
+        }
+      ]
+    },
+    {
+      "key": "AQBdQnt0Q7AWzqKFOxlUrI3wHF9PP0l8Wt61aPf6eWv91",
+      "valType": "object",
+      "objKeys": [
+        "id",
+        "map",
+        "referenceMessageMap",
+        "serviceReadIndex",
+        "buyerReadIndex"
+      ],
+      "innerSize": 8,
+      "innerKeys": [
+        "7652790481587324201_Welcome_",
+        "BFF7F5D3-DD44-4881-A9C8-EFAEE75B30FB",
+        "1dbbb338-4e0c-4ad8-90b9-d86678da1ac3"
+      ],
+      "innerSample": [
+        {
+          "content": "转人工",
+          "sender_role": "1"
+        },
+        {
+          "content": "您好栋梁說~ 是遇到什么问题需要人工协助吗？可以先和我说下具体情况，我会尽力帮您处理~ 如果确实需要转人工，麻烦您提供一",
+          "sender_role": "2"
+        },
+        {
+          "content": "[客服关闭会话]",
+          "sender_role": "2"
+        }
+      ]
+    },
+    {
+      "key": "AQCjBaos1sYYufO8a69tzyPrHF9PP0l8Wt61aPf6eWv91",
+      "valType": "object",
+      "objKeys": [
+        "id",
+        "map",
+        "referenceMessageMap",
+        "serviceReadIndex",
+        "buyerReadIndex"
+      ],
+      "innerSize": 9,
+      "innerKeys": [
+        "cs_close_conversation7652789662380983586",
+        "988d2b08-383f-4dcc-abda-6c0e68012586",
+        "42D2E1A0-C1E7-4745-8422-6001DFFF1358"
+      ],
+      "innerSample": [
+        {
+          "content": "是的呢，我是抖店飞鸽的AI客服助手~ 您有订单、商品或售后相关的问题都可以告诉我，我会尽力帮您处理哒！",
+          "sender_role": "2"
+        },
+        {
+          "content": "你是对接的ai吗？？",
+          "sender_role": "1"
+        },
+        {
+          "content": "您好呀，不同款式的手镯圈口可能不同呢~麻烦您告知一下具体是哪款手镯呀，我帮您确认对应的圈口信息~",
+          "sender_role": "2"
+        }
+      ]
+    }
+  ],
+  "sessionListLen": 0
+}

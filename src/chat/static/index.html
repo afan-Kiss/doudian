@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>飞鸽聊天</title>
+  <link rel="stylesheet" href="/static/chat.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <header class="sidebar-header">
+        <h1>飞鸽会话</h1>
+        <p class="status" id="connectionStatus">连接中...</p>
+      </header>
+      <div class="conversation-list" id="conversationList"></div>
+    </aside>
+
+    <main class="chat-panel">
+      <header class="chat-header">
+        <div>
+          <h2 id="chatTitle">选择会话</h2>
+          <p id="chatSubtitle">买家消息在左，店铺回复在右</p>
+        </div>
+      </header>
+
+      <section class="message-list" id="messageList">
+        <div class="empty-state">请选择左侧会话开始查看聊天记录</div>
+      </section>
+
+      <footer class="composer">
+        <textarea
+          id="messageInput"
+          rows="3"
+          placeholder="输入回复内容，Enter 发送，Shift+Enter 换行"
+          disabled
+        ></textarea>
+        <button id="sendButton" type="button" disabled>发送</button>
+      </footer>
+    </main>
+  </div>
+
+  <script src="/static/chat.js?v=3"></script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+{
+  "best": {
+    "targetKey": "AQCnSRsg6VjCVV6CzwN4oOAcHF9PP0l8Wt61aPf6eWv91CiWTitMouMi93A9JW_hl54iRJnOiiFe7Sfrh83xb6Nk:263636465::2:1:pigeon",
+    "targetSize": 9
+  },
+  "switched": false,
+  "state": {
+    "connected": true,
+    "logged_in": true,
+    "conversation_id": "AQDzAAVCcdsDV2NSAiScd3pOHF9PP0l8Wt61aPf6eWv91B8UiFxgR2OiAfOQu8-noO-_dllIVzlgQ4DuN8B4ZskE:263636465::1009:1:pigeon:263636465::2:1:pigeon",
+    "customer_name": "",
+    "page_url": "https://im.jinritemai.com/pc_seller_v2/main/workspace?selfId=7649723789181673001",
+    "has_im": true
+  },
+  "dom": {
+    "customer_name": "",
+    "messages": [],
+    "selector_profile": {},
+    "message_count": 0,
+    "sdk_count": 0,
+    "dom_count": 0
+  }
+}

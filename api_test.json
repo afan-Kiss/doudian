@@ -1,0 +1,100 @@
+﻿{
+    "ok":  true,
+    "connected":  true,
+    "logged_in":  true,
+    "conversation_id":  "AQCnSRsg6VjCVV6CzwN4oOAcHF9PP0l8Wt61aPf6eWv91CiWTitMouMi93A9JW_hl54iRJnOiiFe7Sfrh83xb6Nk:263636465::2:1:pigeon",
+    "customer_name":  "",
+    "customer_hash":  "091d402017bd81d3",
+    "current_customer_question":  "",
+    "recent_messages":  [
+                            {
+                                "role":  "system",
+                                "text":  "??¨è?\u0085?????a????¤?????3?????\u00853é?-???èˉ?",
+                                "time":  "",
+                                "message_id":  "1868473212443700"
+                            },
+                            {
+                                "role":  "service",
+                                "text":  "???????°?é??è??????????????è????a???é?ˉ??ˉ????????-?????°??1??????è????ˉ??3?o?è§￡?????￡?¤§?°???????è′¨???è??è???o???????e???",
+                                "time":  "",
+                                "message_id":  "1868472257776672"
+                            },
+                            {
+                                "role":  "service",
+                                "text":  "????￥???????????¤?????2????é????°????1????è?￡????o??????????è?\u0085?ˉ1??±????????????é?ˉ???????1???3é???????????",
+                                "time":  "",
+                                "message_id":  "1868471292141616"
+                            },
+                            {
+                                "role":  "service",
+                                "text":  "???????°?é??è??????????????è????a???é?ˉ??ˉ????????-?????°??1??????è????ˉ??3?o?è§￡?????￡?¤§?°????è?\u0085???è′¨???è????????e???",
+                                "time":  "",
+                                "message_id":  "1868471288340563"
+                            },
+                            {
+                                "role":  "customer",
+                                "text":  "????￥?",
+                                "time":  "",
+                                "message_id":  "1868471277033511"
+                            },
+                            {
+                                "role":  "system",
+                                "text":  "Hi?????￠è???\u0085???′????o????èˉ·é?????????1???ˉ??￥????????¨?",
+                                "time":  "",
+                                "message_id":  "1868471272006684"
+                            },
+                            {
+                                "role":  "system",
+                                "text":  "?oo?·￥??￠??? é￥-é￥- ??o??¨??????",
+                                "time":  "",
+                                "message_id":  "1868471273884672"
+                            },
+                            {
+                                "role":  "system",
+                                "text":  "??￠???é￥-é￥-??￥?\u0085￥",
+                                "time":  "",
+                                "message_id":  "1868471276230668"
+                            },
+                            {
+                                "role":  "customer",
+                                "text":  "9",
+                                "time":  "",
+                                "message_id":  "1868471270134796"
+                            },
+                            {
+                                "role":  "service",
+                                "text":  "6???20??￥ 07:51",
+                                "time":  "",
+                                "message_id":  "dom:service:-267:6???20??￥ 07:51"
+                            },
+                            {
+                                "role":  "service",
+                                "text":  "????￥?",
+                                "time":  "",
+                                "message_id":  "dom:service:50:????￥?"
+                            }
+                        ],
+    "last_customer_messages":  [
+
+                               ],
+    "last_service_message":  "????￥?",
+    "should_reply":  false,
+    "dom_count":  12,
+    "sdk_count":  10,
+    "hook_count":  0,
+    "ws_count":  0,
+    "message_sources":  {
+                            "sdk":  10,
+                            "dom":  2,
+                            "hook":  0,
+                            "ws":  0,
+                            "merged":  11
+                        },
+    "selector_profile":  {
+                             "sdk":  "sdk-messagesByConversationId.map",
+                             "title":  "",
+                             "list":  "body",
+                             "item":  "msgItem",
+                             "source":  "dom"
+                         }
+}

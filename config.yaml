@@ -1,0 +1,38 @@
+browser:
+  executable_path: C:\Users\1\AppData\Local\Google\Chrome\Application\chrome.exe
+  user_data_dir: D:\douyin-customer-assistant\data\chrome-profile
+  debug_port: 9222
+  headless: false
+  connect_only: true
+
+urls:
+  doudian: https://fxg.jinritemai.com/
+  feige: https://im.jinritemai.com/pc_seller_v2/main
+
+monitor:
+  filter_hosts:
+    - im.jinritemai.com
+    - fxg.jinritemai.com
+    - frontier.snssdk.com
+    - snssdk.com
+    - pigeon.jinritemai.com
+  save_raw: true
+  console_log: true
+
+inbound:
+  roles:
+    - buyer
+  dedupe_window_ms: 4000
+
+chat_ui:
+  host: 127.0.0.1
+  port: 4713
+  roles:
+    - buyer
+    - seller
+    - system
+
+bot:
+  enabled: false
+
+capture_dir: captures
