@@ -12,6 +12,7 @@ from src.bot.llm_client import LLMClient
 from src.chat.conversation_keys import normalize_route_key
 from src.chat.hub import ChatHub
 from src.chat.send_service import ConversationTarget, send_text_to_buyer_message
+from src.cdp.page_session import PageSession, is_stale_page_error
 from src.monitor.inbound_listener import make_dedupe_key
 from src.monitor.text_filters import is_meaningless_message
 
@@ -45,7 +46,7 @@ class AutoReplier:
         self,
         *,
         hub: ChatHub,
-        page: Any,
+        page_session: PageSession,
         schema_dir: Any,
         llm: LLMClient,
         system_prompt: str,
@@ -56,7 +57,7 @@ class AutoReplier:
         sales_min_rounds: int = 3,
     ) -> None:
         self.hub = hub
-        self.page = page
+        self.page_session = page_session
         self.schema_dir = schema_dir
         self.llm = llm
         self.system_prompt = system_prompt
@@ -72,24 +73,44 @@ class AutoReplier:
         self._debounce_tasks: dict[str, asyncio.Task[None]] = {}
         self._pending_no_route: dict[str, list[dict[str, Any]]] = {}
         self._last_product_card_reply_at: dict[str, float] = {}
-        self._handled_content_keys: set[str] = set()
         self._llm_gate = asyncio.Semaphore(1)
         self._schedule_lock = asyncio.Lock()
         self._started_at = time.time()
 
+    async def _get_page(self) -> Any:
+        return await self.page_session.get_active_feige_page()
+
+    def _message_fingerprint(self, msg: dict[str, Any]) -> str:
+        target = ConversationTarget.from_message(msg)
+        conv = lock_key_for_target(target)
+        mid = self._message_key(msg)
+        if mid:
+            return f"{conv}|id:{mid}"
+        text = str(msg.get("text") or "").strip()
+        ts = str(msg.get("timestamp") or msg.get("time") or "")
+        return f"{conv}|{text}|{ts}"
+
     async def mark_startup_history_handled(self, delay_sec: float = 6.0) -> None:
-        """After WS/page replay on connect, do not auto-reply to buffered history."""
+        """Only skip buyer messages that already have a seller reply in hub history."""
         await asyncio.sleep(delay_sec)
-        marked = 0
         for msg in self.hub.list_messages():
             if str(msg.get("role") or "") != "buyer":
                 continue
-            if self._message_sort_ts(msg) >= self._started_at - 1.0:
+            if self._buyer_already_answered(msg):
+                self._mark_handled(msg)
+
+    def _buyer_already_answered(self, buyer_msg: dict[str, Any]) -> bool:
+        target = ConversationTarget.from_message(buyer_msg)
+        conv_key = lock_key_for_target(target)
+        buyer_ts = self._message_sort_ts(buyer_msg)
+        buyer_fp = self._message_fingerprint(buyer_msg)
+        for item in self.hub.list_messages(conv_key):
+            role = str(item.get("role") or "")
+            if role != "seller":
                 continue
-            self._mark_handled(msg)
-            marked += 1
-        if marked:
-            pass
+            if self._message_sort_ts(item) >= buyer_ts - 0.5:
+                return True
+        return buyer_fp in self._handled_message_ids
 
     def _message_sort_ts(self, msg: dict[str, Any]) -> float:
         ts = msg.get("timestamp")
@@ -105,16 +126,7 @@ class AutoReplier:
         return time.time()
 
     def _content_dedupe_key(self, msg: dict[str, Any]) -> str:
-        text = str(msg.get("text") or "").strip()
-        if not text or text == PRODUCT_CARD_TEXT:
-            return ""
-        if self._has_stable_message_id(msg):
-            return ""
-        target = ConversationTarget.from_message(msg)
-        lock = lock_key_for_target(target)
-        if not lock:
-            return ""
-        return f"{lock}:{text}"
+        return self._message_fingerprint(msg)
 
     def _has_stable_message_id(self, msg: dict[str, Any]) -> bool:
         for field in ("server_message_id", "client_message_id"):
@@ -127,16 +139,16 @@ class AutoReplier:
         message_key = self._message_key(msg)
         if message_key:
             self._handled_message_ids.add(message_key)
-        content_key = self._content_dedupe_key(msg)
-        if content_key:
-            self._handled_content_keys.add(content_key)
+        fp = self._message_fingerprint(msg)
+        if fp:
+            self._handled_message_ids.add(fp)
 
     def _is_already_handled(self, msg: dict[str, Any]) -> bool:
         message_key = self._message_key(msg)
         if message_key and message_key in self._handled_message_ids:
             return True
-        content_key = self._content_dedupe_key(msg)
-        return bool(content_key and content_key in self._handled_content_keys)
+        fp = self._message_fingerprint(msg)
+        return bool(fp and fp in self._handled_message_ids)
 
     def _enrich_message(self, msg: dict[str, Any], target: ConversationTarget) -> tuple[dict[str, Any], ConversationTarget]:
         route, talk_id = self.hub.resolve_conversation_ids(
@@ -175,17 +187,6 @@ class AutoReplier:
 
         if self._is_already_handled(msg):
             return
-
-        # Session-open history replay can flood the bot right after service start.
-        now = time.time()
-        if now - self._started_at < 30.0:
-            msg_ts = self._message_sort_ts(msg)
-            if msg_ts < self._started_at - 1.0:
-                self._mark_handled(msg)
-                return
-            if not self._message_key(msg) and now - msg_ts > 8.0:
-                self._mark_handled(msg)
-                return
 
         if not self._should_consider(msg):
             return
@@ -380,17 +381,28 @@ class AutoReplier:
             return
 
         try:
-            result = await asyncio.wait_for(
-                send_text_to_buyer_message(
-                    page=self.page,
-                    schema_dir=self.schema_dir,
-                    hub=self.hub,
-                    buyer_message=msg,
-                    text=reply_text,
-                    source="bot_api",
-                ),
-                timeout=90.0,
-            )
+            for attempt in range(2):
+                try:
+                    page = await self._get_page()
+                    result = await asyncio.wait_for(
+                        send_text_to_buyer_message(
+                            page=page,
+                            schema_dir=self.schema_dir,
+                            hub=self.hub,
+                            buyer_message=msg,
+                            text=reply_text,
+                            source="bot_api",
+                        ),
+                        timeout=90.0,
+                    )
+                    break
+                except Exception as exc:
+                    if attempt == 0 and is_stale_page_error(exc):
+                        await self.page_session.rebind_feige_page_if_needed()
+                        continue
+                    raise
+            else:
+                raise RuntimeError("发送失败：页面引用失效")
         except TimeoutError as exc:
             raise RuntimeError("发送超时（90秒），请检查飞鸽是否已登录且会话可打开") from exc
         self._last_reply_at[lock_key] = asyncio.get_running_loop().time()
@@ -470,7 +482,7 @@ def build_auto_replier(
     *,
     config: dict[str, Any],
     hub: ChatHub,
-    page: Any,
+    page_session: PageSession,
     schema_dir: Any,
 ) -> AutoReplier | None:
     bot_cfg = config.get("bot") or {}
@@ -564,7 +576,7 @@ def build_auto_replier(
 
     return AutoReplier(
         hub=hub,
-        page=page,
+        page_session=page_session,
         schema_dir=schema_dir,
         llm=llm,
         system_prompt=system_prompt,

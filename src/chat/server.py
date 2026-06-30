@@ -42,6 +42,7 @@ class ChatServerState:
         hub: ChatHub,
         launcher: Any,
         schema_dir: Path,
+        page_poller: Any | None = None,
     ) -> None:
         self.hub = hub
         self.launcher = launcher
@@ -49,10 +50,13 @@ class ChatServerState:
         self.schema_dir = schema_dir
         self.navigator = FeigeNavigator()
         self.sender = APISender(schema_dir)
+        self.page_poller = page_poller
+        self.dispatcher: Any | None = None
 
 
 class SwitchConversationRequest(BaseModel):
     conversation_id: str = Field(min_length=1)
+    customer_name: str = ""
 
 
 class ScanConversationsRequest(BaseModel):
@@ -126,14 +130,24 @@ def create_app(state: ChatServerState) -> FastAPI:
         cid = body.conversation_id.strip()
         try:
             async def _switch(page: Any) -> dict[str, Any]:
-                return await switch_conversation(page, cid)
+                return await switch_conversation(
+                    page,
+                    cid,
+                    customer_name=body.customer_name.strip(),
+                )
 
             result, rebounded = await state.session.with_page_retry(_switch)
             if rebounded:
                 result = {**result, "PAGE_REBOUND": True}
             return result
         except Exception as exc:  # noqa: BLE001
-            return {"ok": False, "reason": str(exc)}
+            return {"ok": False, "reason": str(exc), "verified": False}
+
+    @app.get("/api/dispatcher/status")
+    async def dispatcher_status() -> dict[str, Any]:
+        if not state.dispatcher:
+            return {"ok": True, "running": False}
+        return {"ok": True, **state.dispatcher.get_status()}
 
     @app.get("/api/current-conversation")
     async def current_conversation() -> dict[str, Any]:
@@ -177,6 +191,11 @@ def create_app(state: ChatServerState) -> FastAPI:
             result, rebounded = await state.session.with_page_retry(_refresh)
             if rebounded and isinstance(result, dict):
                 result = {**result, "PAGE_REBOUND": True}
+            if isinstance(result, dict) and result.get("PAGE_REBOUND") and state.page_poller:
+                page = await state.session.get_active_feige_page()
+                await state.page_poller.rebind_page(page)
+            if isinstance(result, dict) and result.get("success") and state.dispatcher:
+                state.dispatcher.note_refresh()
             if isinstance(result, dict):
                 result.setdefault("reason", body.reason)
             return result

@@ -83,17 +83,27 @@ async def run_chat_ui(args: argparse.Namespace) -> int:
         hub=hub,
         launcher=launcher,
         schema_dir=capture_dir / "schema",
+        page_poller=page_poller,
     )
 
     auto_replier = None if getattr(args, "no_bot", False) else build_auto_replier(
         config=config,
         hub=hub,
-        page=page,
+        page_session=server_state.session,
         schema_dir=capture_dir / "schema",
     )
     if auto_replier:
         hub.register_bot_handler(auto_replier.handle_buyer_message)
         asyncio.create_task(auto_replier.mark_startup_history_handled())
+
+    from src.reply.multi_conversation_dispatcher import MultiConversationDispatcher
+
+    server_state.dispatcher = MultiConversationDispatcher(
+        page_session=server_state.session,
+        hub=hub,
+        schema_dir=capture_dir / "schema",
+    )
+    asyncio.create_task(server_state.dispatcher.start())
     app = create_app(server_state)
     uvicorn_config = uvicorn.Config(app, host=host, port=port, log_level="warning")
     server = uvicorn.Server(uvicorn_config)
@@ -138,6 +148,8 @@ async def run_chat_ui(args: argparse.Namespace) -> int:
 
     print(f"\n聊天界面结束，共识别 {len(inbound.messages)} 条消息。")
     await page_poller.stop()
+    if server_state.dispatcher:
+        await server_state.dispatcher.stop()
     await monitor.stop()
     await launcher.stop()
     return 0

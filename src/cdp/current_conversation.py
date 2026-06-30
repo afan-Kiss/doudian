@@ -174,7 +174,7 @@ def feige_page_hint(page_url: str) -> str:
         return "飞鸽当前在「历史会话」页，请回到「当前会话」并点开该买家。"
     if not url or "workspace" not in url:
         return "请打开飞鸽「当前会话」页，并在左侧点开该买家的聊天窗口。"
-    return "请先在飞鸽左侧点开该买家的会话（最后一条须是买家消息）。"
+    return "请先在飞鸽左侧点开该买家的会话。"
 
 
 async def probe_page_state(page: Any) -> dict[str, Any]:

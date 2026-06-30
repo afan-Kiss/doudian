@@ -4,7 +4,8 @@ import logging
 import time
 from typing import Any
 
-from src.cdp.conversation_list import scan_conversation_list
+from src.cdp.conversation_list import _scan_conversation_list_impl
+from src.cdp.page_action_lock import is_page_busy, page_action_lock
 from src.sender.frame_context import find_im_frame
 
 logger = logging.getLogger("feige_refresh")
@@ -109,31 +110,41 @@ async def refresh_feige_and_rescan(
     launcher: Any,
     *,
     name_cache: dict[str, str] | None = None,
+    check_idle: bool = True,
 ) -> dict[str, Any]:
     started = time.monotonic()
-    reload_result = await reload_and_wait(page, launcher)
-    if not reload_result.get("ok"):
+    if check_idle and is_page_busy():
         return {
             "ok": False,
             "success": False,
-            **reload_result,
+            "skipped": True,
+            "reason": "page_busy",
+            "message": "飞鸽页面正在处理会话，暂不刷新",
         }
+    async with page_action_lock("refresh_feige"):
+        reload_result = await reload_and_wait(page, launcher)
+        if not reload_result.get("ok"):
+            return {
+                "ok": False,
+                "success": False,
+                **reload_result,
+            }
 
-    scan = await scan_conversation_list(page, name_cache=name_cache)
-    conversations = scan.get("conversations") or []
-    pending_hint = sum(
-        1
-        for c in conversations
-        if str(c.get("last_message_role") or "") == "customer" and not c.get("closed")
-    )
-    duration_ms = int((time.monotonic() - started) * 1000)
-    return {
-        "ok": True,
-        "success": True,
-        "duration_ms": duration_ms,
-        "conversation_count_after_refresh": len(conversations),
-        "pending_count_after_refresh": pending_hint,
-        "scan": scan,
-        "page_url": reload_result.get("page_url", ""),
-        "PAGE_REBOUND": True,
-    }
+        scan = await _scan_conversation_list_impl(page, name_cache=name_cache)
+        conversations = scan.get("conversations") or []
+        pending_hint = sum(
+            1
+            for c in conversations
+            if c.get("has_unreplied_customer_message") and not c.get("closed")
+        )
+        duration_ms = int((time.monotonic() - started) * 1000)
+        return {
+            "ok": True,
+            "success": True,
+            "duration_ms": duration_ms,
+            "conversation_count_after_refresh": len(conversations),
+            "pending_count_after_refresh": pending_hint,
+            "scan": scan,
+            "page_url": reload_result.get("page_url", ""),
+            "PAGE_REBOUND": True,
+        }

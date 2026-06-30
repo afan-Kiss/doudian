@@ -292,9 +292,8 @@ async def fetch_order_context(page: Any, conversation_id: str = "") -> dict[str,
 async def _fetch_order_context_inner(page: Any, conversation_id: str = "") -> dict[str, Any]:
     im = await find_im_frame(page)
     session = await _read_session_ids(im)
-    security_user_id = session.get("security_user_id") or parse_security_user_id(
-        conversation_id or session.get("conversation_id") or ""
-    )
+    expected_uid = parse_security_user_id(conversation_id or session.get("conversation_id") or "")
+    security_user_id = session.get("security_user_id") or expected_uid
     short_id = parse_conversation_short_id(session.get("conversation_short_id") or "")
 
     ctx = await fetch_orders_protocol(
@@ -303,9 +302,15 @@ async def _fetch_order_context_inner(page: Any, conversation_id: str = "") -> di
         conversation_short_id=short_id,
     )
     if ctx.get("has_order"):
+        ctx["security_user_id"] = security_user_id
+        if expected_uid and security_user_id and expected_uid != security_user_id:
+            return _empty_order_context("mismatch", "订单上下文与当前会话不匹配")
         return ctx
 
     dom_ctx = await read_orders_from_dom(page)
+    dom_ctx["security_user_id"] = security_user_id
+    if expected_uid and security_user_id and expected_uid != security_user_id:
+        return _empty_order_context("mismatch", "订单上下文与当前会话不匹配")
     if dom_ctx.get("has_order") or dom_ctx.get("summary") == "当前买家暂无订单":
         return dom_ctx
 

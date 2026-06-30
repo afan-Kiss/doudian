@@ -98,6 +98,13 @@ class PageInboundPoller:
         self._stop = asyncio.Event()
         self._directory_ticks = 0
 
+    async def rebind_page(self, page: Page) -> None:
+        self.page = page
+        self._directory_ticks = 0
+        await self._ensure_hook_installed()
+        if self.hub:
+            await self._sync_conversation_directory()
+
     async def start(self) -> None:
         if self._task and not self._task.done():
             return

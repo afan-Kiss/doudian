@@ -120,7 +120,7 @@ def evaluate_auto_send_gate(
     if not trimmed:
         return fail("回复为空")
     if not should_reply:
-        return fail("当前最后一条不是客户消息")
+        return fail("当前没有待回复的买家消息")
     if already_replied:
         return fail("这组客户消息已经发送过，已阻止重复发送。")
     if reply_source == "manual_test" and not test_mode:

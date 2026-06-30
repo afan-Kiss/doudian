@@ -5,7 +5,6 @@ from typing import Any
 
 MAX_CURRENT_CUSTOMER_MESSAGES = 8
 RECENT_CONTEXT_LIMIT = 20
-CURRENT_MESSAGE_TIME_WINDOW_MINUTES = 5
 
 SERVICE_ROLES = {"service", "robot", "seller", "客服"}
 
@@ -93,7 +92,6 @@ def merge_customer_fragments(texts: list[str]) -> str:
 def _parse_time_ms(time: str | None) -> int | None:
     if not time or not str(time).strip():
         return None
-    # DOM often gives HH:MM only; treat as recent
     if re.match(r"^\d{1,2}:\d{2}$", str(time).strip()):
         return None
     try:
@@ -101,7 +99,115 @@ def _parse_time_ms(time: str | None) -> int | None:
 
         return int(datetime.fromisoformat(str(time).replace("Z", "+00:00")).timestamp() * 1000)
     except ValueError:
+        raw = str(time).strip()
+        if raw.isdigit():
+            n = int(raw)
+            return n if n > 1_000_000_000_000 else n * 1000
         return None
+
+
+def _message_sort_key(m: dict[str, Any], index: int) -> tuple[int, int]:
+    parsed = _parse_time_ms(str(m.get("time") or ""))
+    return (parsed if parsed is not None else index, index)
+
+
+def _is_ignorable_between(m: dict[str, Any]) -> bool:
+    return m["role"] in {"system", "robot"}
+
+
+def find_pending_customer_messages(
+    messages: list[dict[str, Any]],
+    state: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Find buyer messages after the last service reply; ignore system/card noise."""
+    _ = state
+    normalized = [
+        {
+            "role": normalize_role(str(m.get("role") or "customer")),
+            "text": str(m.get("text") or "").strip(),
+            "time": str(m.get("time") or ""),
+            "message_id": str(m.get("message_id") or m.get("id") or ""),
+        }
+        for m in messages
+        if str(m.get("text") or "").strip()
+    ]
+
+    if not normalized:
+        return {
+            "should_reply": False,
+            "pending_customer_messages": [],
+            "current_customer_question": "",
+            "latest_customer_message_id": "",
+            "latest_customer_message_time": "",
+            "latest_service_message_id": "",
+            "latest_service_message_time": "",
+            "reason": "no_messages",
+        }
+
+    effective = _strip_trailing_system_noise(normalized)
+
+    last_service_index = -1
+    last_service: dict[str, Any] | None = None
+    for i in range(len(effective) - 1, -1, -1):
+        if effective[i]["role"] in SERVICE_ROLES:
+            last_service_index = i
+            last_service = effective[i]
+            break
+
+    pending: list[dict[str, Any]] = []
+    if last_service_index >= 0:
+        for m in effective[last_service_index + 1 :]:
+            if _is_ignorable_between(m):
+                continue
+            if m["role"] == "customer" and m["text"]:
+                pending.append(m)
+    else:
+        for m in effective:
+            if _is_ignorable_between(m):
+                continue
+            if m["role"] == "customer" and m["text"]:
+                pending.append(m)
+
+    pending = pending[-MAX_CURRENT_CUSTOMER_MESSAGES:]
+
+    latest_customer: dict[str, Any] | None = None
+    for m in reversed(effective):
+        if m["role"] == "customer" and m["text"]:
+            latest_customer = m
+            break
+
+    should_reply = bool(pending)
+    reason = "pending_customer_after_last_service" if should_reply else "already_replied"
+
+    if latest_customer and last_service:
+        svc_ms = _parse_time_ms(last_service.get("time"))
+        cust_ms = _parse_time_ms(latest_customer.get("time"))
+        if svc_ms is not None and cust_ms is not None and svc_ms > cust_ms:
+            should_reply = False
+            pending = []
+            reason = "service_after_customer_by_time"
+        elif (
+            not pending
+            and last_service_index >= 0
+            and latest_customer
+            and effective.index(latest_customer) <= last_service_index
+        ):
+            should_reply = False
+            reason = "already_replied"
+
+    question = merge_customer_fragments([m["text"] for m in pending])
+    latest = pending[-1] if pending else (latest_customer or {})
+
+    return {
+        "should_reply": should_reply and bool(question),
+        "pending_customer_messages": pending,
+        "current_customer_question": question,
+        "latest_customer_message_id": str(latest.get("message_id") or ""),
+        "latest_customer_message_time": str(latest.get("time") or ""),
+        "latest_service_message_id": str((last_service or {}).get("message_id") or ""),
+        "latest_service_message_time": str((last_service or {}).get("time") or ""),
+        "reason": reason if should_reply else reason,
+    }
 
 
 def aggregate_conversation(
@@ -109,78 +215,39 @@ def aggregate_conversation(
     *,
     conversation_id: str = "",
     customer_hash: str = "",
+    reply_state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     normalized = [
         {
             "role": normalize_role(str(m.get("role") or "customer")),
             "text": str(m.get("text") or "").strip(),
             "time": str(m.get("time") or ""),
-            "message_id": str(m.get("message_id") or ""),
+            "message_id": str(m.get("message_id") or m.get("id") or ""),
         }
         for m in messages
         if str(m.get("text") or "").strip()
     ]
 
     recent_messages = normalized[-RECENT_CONTEXT_LIMIT:]
-    effective = _strip_trailing_system_noise(normalized)
-    if not effective:
-        return {
-            "conversation_id": conversation_id,
-            "customer_hash": customer_hash,
-            "current_customer_question": "",
-            "recent_messages": recent_messages,
-            "last_service_message": "",
-            "last_customer_messages": [],
-            "should_reply": False,
-        }
+    pending_info = find_pending_customer_messages(normalized, reply_state)
 
-    last = effective[-1]
-    if last["role"] != "customer":
-        last_service = next((m for m in reversed(effective) if m["role"] in SERVICE_ROLES), None)
-        return {
-            "conversation_id": conversation_id,
-            "customer_hash": customer_hash,
-            "current_customer_question": "",
-            "recent_messages": recent_messages,
-            "last_service_message": last_service["text"] if last_service else "",
-            "last_customer_messages": [],
-            "should_reply": False,
-        }
-
-    last_service_index = -1
-    for i in range(len(effective) - 2, -1, -1):
-        if effective[i]["role"] in SERVICE_ROLES:
-            last_service_index = i
-            break
-
-    if last_service_index >= 0:
-        block = effective[last_service_index + 1 :]
-        last_customer_messages = [
-            m for m in block if m["role"] == "customer" and m["text"]
-        ]
-    else:
-        pending: list[dict[str, Any]] = []
-        for m in reversed(effective):
+    last_service_message = ""
+    if pending_info.get("latest_service_message_time") or pending_info.get("latest_service_message_id"):
+        for m in reversed(normalized):
             if m["role"] in SERVICE_ROLES:
+                last_service_message = m["text"]
                 break
-            if m["role"] in {"system", "robot"}:
-                continue
-            if m["role"] == "customer" and m["text"]:
-                pending.insert(0, m)
-            if len(pending) >= MAX_CURRENT_CUSTOMER_MESSAGES:
-                break
-        last_customer_messages = pending
-
-    last_customer_messages = last_customer_messages[-MAX_CURRENT_CUSTOMER_MESSAGES:]
-    question = merge_customer_fragments([m["text"] for m in last_customer_messages])
-    last_service_message = effective[last_service_index]["text"] if last_service_index >= 0 else ""
 
     return {
         "conversation_id": conversation_id,
         "customer_hash": customer_hash,
-        "current_customer_question": question,
+        "current_customer_question": pending_info["current_customer_question"],
         "recent_messages": recent_messages,
         "last_service_message": last_service_message,
-        "last_customer_messages": last_customer_messages,
-        "should_reply": bool(question),
+        "last_customer_messages": pending_info["pending_customer_messages"],
+        "should_reply": pending_info["should_reply"],
+        "latest_customer_message_id": pending_info["latest_customer_message_id"],
+        "latest_customer_message_time": pending_info["latest_customer_message_time"],
+        "has_unreplied_customer_message": pending_info["should_reply"],
+        "pending_reason": pending_info["reason"],
     }
