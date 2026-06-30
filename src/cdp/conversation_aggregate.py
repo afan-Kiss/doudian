@@ -12,6 +12,25 @@ SYSTEM_NOISE_PATTERN = re.compile(
     r"欢迎光临|有什么可以帮助|客服.*接入|超时未回复|系统关闭|关闭会话|\[客服",
     re.I,
 )
+EMOJI_ONLY_PATTERN = re.compile(r"^\[[^\]]{1,12}\]$")
+WELCOME_PATTERN = re.compile(r"欢迎光临|有什么可以帮助|Hi[,，]?\s*欢迎", re.I)
+
+
+def _is_substantive_service_reply(text: str) -> bool:
+    t = str(text or "").strip()
+    if not t:
+        return False
+    if EMOJI_ONLY_PATTERN.match(t):
+        return False
+    if WELCOME_PATTERN.search(t):
+        return False
+    if SYSTEM_NOISE_PATTERN.search(t):
+        return False
+    if len(t) <= 2:
+        return False
+    if re.match(r"^[\[【].*[\]】]$", t) and len(t) <= 8:
+        return False
+    return True
 
 
 def _strip_trailing_system_noise(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -149,10 +168,16 @@ def find_pending_customer_messages(
     last_service_index = -1
     last_service: dict[str, Any] | None = None
     for i in range(len(effective) - 1, -1, -1):
-        if effective[i]["role"] in SERVICE_ROLES:
-            last_service_index = i
-            last_service = effective[i]
-            break
+        role = effective[i]["role"]
+        if role not in SERVICE_ROLES:
+            continue
+        if role == "robot":
+            continue
+        if not _is_substantive_service_reply(effective[i]["text"]):
+            continue
+        last_service_index = i
+        last_service = effective[i]
+        break
 
     pending: list[dict[str, Any]] = []
     if last_service_index >= 0:
@@ -232,11 +257,10 @@ def aggregate_conversation(
     pending_info = find_pending_customer_messages(normalized, reply_state)
 
     last_service_message = ""
-    if pending_info.get("latest_service_message_time") or pending_info.get("latest_service_message_id"):
-        for m in reversed(normalized):
-            if m["role"] in SERVICE_ROLES:
-                last_service_message = m["text"]
-                break
+    for m in reversed(normalized):
+        if m["role"] in SERVICE_ROLES and _is_substantive_service_reply(m["text"]):
+            last_service_message = m["text"]
+            break
 
     return {
         "conversation_id": conversation_id,

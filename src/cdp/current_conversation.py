@@ -16,8 +16,9 @@ logger = logging.getLogger("current_conversation")
 
 _CDP_DIR = Path(__file__).resolve().parent
 _BUYER_EXTRACT_JS = (_CDP_DIR / "buyer_name_extract.js").read_text(encoding="utf-8")
+_MSG_UTILS_JS = (_CDP_DIR / "feige_message_utils.js").read_text(encoding="utf-8")
 _DOM_SNAPSHOT_RAW = (_CDP_DIR / "dom_chat_snapshot.js").read_text(encoding="utf-8")
-DOM_SNAPSHOT_JS = _BUYER_EXTRACT_JS + "\n" + _DOM_SNAPSHOT_RAW
+DOM_SNAPSHOT_JS = _BUYER_EXTRACT_JS + "\n" + _MSG_UTILS_JS + "\n" + _DOM_SNAPSHOT_RAW
 
 ROLE_FROM_HUB = {
     "buyer": "customer",

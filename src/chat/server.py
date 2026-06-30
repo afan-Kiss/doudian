@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from src.cdp.conversation_list import scan_conversation_list, switch_conversation
 from src.cdp.current_conversation import read_current_conversation
+from src.cdp.live_dom_probe import live_dom_probe
 from src.cdp.page_session import PageSession
 from src.chat.hub import ChatHub
 from src.chat.send_service import send_text_message
@@ -57,6 +58,8 @@ class ChatServerState:
 class SwitchConversationRequest(BaseModel):
     conversation_id: str = Field(min_length=1)
     customer_name: str = ""
+    last_text: str = ""
+    dom_row_index: int = -1
 
 
 class ScanConversationsRequest(BaseModel):
@@ -105,6 +108,19 @@ def create_app(state: ChatServerState) -> FastAPI:
                 "message": str(exc),
             }
 
+    @app.get("/api/debug/live-dom-probe")
+    async def debug_live_dom_probe() -> dict[str, Any]:
+        try:
+            async def _probe(page: Any) -> dict[str, Any]:
+                return await live_dom_probe(page)
+
+            result, rebounded = await state.session.with_page_retry(_probe)
+            if rebounded:
+                result = {**result, "PAGE_REBOUND": True}
+            return result
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "reason": str(exc)}
+
     @app.get("/api/scan-conversations")
     async def scan_conversations_get() -> dict[str, Any]:
         return await _scan_conversations({})
@@ -134,6 +150,8 @@ def create_app(state: ChatServerState) -> FastAPI:
                     page,
                     cid,
                     customer_name=body.customer_name.strip(),
+                    last_text=body.last_text.strip(),
+                    dom_row_index=body.dom_row_index,
                 )
 
             result, rebounded = await state.session.with_page_retry(_switch)

@@ -10,6 +10,7 @@ from src.cdp.conversation_list import _scan_conversation_list_impl, _switch_conv
 from src.cdp.current_conversation import read_current_conversation
 from src.cdp.order_context import fetch_order_context, parse_security_user_id
 from src.cdp.page_action_lock import page_action_lock
+from src.cdp.system_notice import is_system_notice_conversation
 
 logger = logging.getLogger("multi_dispatch")
 
@@ -33,7 +34,9 @@ def build_pending_queue(conversations: list[dict[str, Any]]) -> list[dict[str, A
     pending = [
         c
         for c in conversations
-        if c.get("has_unreplied_customer_message") and not c.get("closed")
+        if c.get("has_unreplied_customer_message")
+        and not c.get("closed")
+        and not is_system_notice_conversation(c)
     ]
 
     def sort_key(c: dict[str, Any]) -> tuple:
@@ -58,6 +61,7 @@ class DispatcherStatus:
     last_refresh_time: str = ""
     last_round_found: int = 0
     last_error: str = ""
+    ignored_system_notice_count: int = 0
     recent_records: list[dict[str, str]] = field(default_factory=list)
 
 
@@ -96,6 +100,7 @@ class MultiConversationDispatcher:
             "last_refresh_time": st.last_refresh_time,
             "last_round_found": st.last_round_found,
             "last_error": st.last_error,
+            "ignored_system_notice_count": st.ignored_system_notice_count,
             "recent_records": list(st.recent_records[-20:]),
         }
 
@@ -134,6 +139,23 @@ class MultiConversationDispatcher:
             return
 
         conversations = scan.get("conversations") or []
+        ignored = [c for c in conversations if is_system_notice_conversation(c)]
+        self.status.ignored_system_notice_count = len(ignored)
+        for conv in ignored:
+            buyer = str(conv.get("customer_name") or conv.get("buyer_name") or "系统通知")
+            self._append_record(
+                {
+                    "time": time.strftime("%H:%M:%S"),
+                    "buyer": buyer,
+                    "question": str(conv.get("last_message_text") or "")[:80],
+                    "order": "",
+                    "express": "",
+                    "reply": "",
+                    "result": "已忽略",
+                    "reason": "系统通知，不需要回复",
+                }
+            )
+
         queue = build_pending_queue(conversations)
         self.status.pending_count = len(queue)
         self.status.last_scan_time = time.strftime("%H:%M")
@@ -173,12 +195,10 @@ class MultiConversationDispatcher:
                     customer_name=buyer,
                 )
                 if not switched.get("verified"):
-                    record["result"] = "人工处理"
-                    record["reason"] = "切换会话失败"
-                    self._handoff_ids.add(cid)
-                    self.status.handoff_count = len(self._handoff_ids)
+                    record["result"] = "稍后重试"
+                    record["reason"] = "切换会话失败，稍后重试"
                     self._append_record(record)
-                    return {"ok": False, "handoff": True, "reason": "switch_failed"}
+                    return {"ok": False, "retry": True, "reason": record["reason"]}
 
                 detail = await read_current_conversation(page, self.hub)
                 if not detail.get("should_reply"):

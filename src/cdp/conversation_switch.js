@@ -1,11 +1,15 @@
 /**
- * Open a Feige conversation with verification. Args: { conversationId, customerName }
+ * Open a Feige conversation — SDK first, DOM click fallback, header verify.
  */
 async (payload) => {
-  const key = String(payload?.conversationId || payload || "").trim();
-  const customerName = String(payload?.customerName || payload?.nickname || "").trim();
-  if (!key) return { ok: false, reason: "empty-id", verified: false };
+  const key = String(payload?.conversationId || payload?.id || "").trim();
+  const customerName = String(
+    payload?.customerName || payload?.nickname || payload?.buyer_name || ""
+  ).trim();
+  const lastText = String(payload?.lastText || payload?.last_text || "").trim();
+  const rowIndex = Number(payload?.rowIndex ?? payload?.dom_row_index ?? -1);
 
+  const utils = window.__feigeMessageUtils;
   const norm = (id) => {
     const value = String(id || "").trim();
     if (value.startsWith("n") && value.length > 24 && value[1] === value[1].toUpperCase()) {
@@ -29,14 +33,17 @@ async (payload) => {
         currentName = String(conv.name || conv.nickname || conv.userName || "").trim();
       });
     } catch (e) {}
+    if (!currentName) currentName = utils?.pickHeaderTitle?.() || "";
     return { currentId, currentName };
   };
 
   const idsMatch = (a, b) => {
     const x = norm(a);
     const y = norm(b);
-    return Boolean(x && y && (x === y || x.includes(y) || y.includes(x)));
+    return Boolean(x && y && !x.startsWith("dom:") && (x === y || x.includes(y) || y.includes(x)));
   };
+
+  const namesMatch = (a, b) => utils?.namesRoughMatch?.(a, b) || String(a).trim() === String(b).trim();
 
   const inputVisible = () => {
     const selectors = [
@@ -44,91 +51,87 @@ async (payload) => {
       'textarea[placeholder*="Enter"]',
       '[contenteditable="true"][role="textbox"]',
       '[contenteditable="true"]',
-      'textarea',
+      "textarea",
     ];
     for (const sel of selectors) {
-      const nodes = document.querySelectorAll(sel);
-      if (nodes.length) return true;
+      if (document.querySelector(sel)) return true;
     }
     return false;
   };
 
-  const clickSidebar = () => {
-    const tryClick = (el) => {
-      if (!el) return false;
-      try {
-        el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-        el.click?.();
-        return true;
-      } catch (e) {
-        return false;
-      }
+  const verifySwitch = () => {
+    const { currentId, currentName } = readCurrent();
+    const idOk = key && !key.startsWith("dom:") ? idsMatch(currentId, key) : false;
+    const nameOk = customerName ? namesMatch(currentName, customerName) : false;
+    const headerOk = customerName
+      ? namesMatch(utils?.pickHeaderTitle?.() || "", customerName)
+      : false;
+    const inputOk = inputVisible();
+    const verified = (idOk || nameOk || headerOk) && inputOk;
+    return {
+      verified,
+      currentId,
+      currentName,
+      inputOk,
+      idOk,
+      nameOk,
+      headerOk,
     };
-    const selectors = [
-      '[class*="conversation"]',
-      '[class*="session"]',
-      '[class*="chat-item"]',
-      '[data-testid*="conversation"]',
-      'li[role="listitem"]',
-    ];
-    for (const sel of selectors) {
-      const nodes = document.querySelectorAll(sel);
-      for (const node of nodes) {
-        const text = String(node.innerText || node.textContent || "").trim();
-        if (customerName && text.includes(customerName)) {
-          if (tryClick(node)) return true;
-        }
-        if (node.getAttribute?.("data-id") === key) {
-          if (tryClick(node)) return true;
-        }
-      }
-    }
-    return false;
   };
 
+  let method = "none";
   const ctx = window.__monaGlobalStore?.getData?.("initContextData");
   const im = ctx?.im;
-  if (!im) return { ok: false, reason: "no-im", verified: false };
 
-  let method = "sdk";
-  try {
-    if (typeof im.ensureConversation === "function") await im.ensureConversation(key);
-    else if (typeof im.openConversation === "function") await im.openConversation(key);
-    else return { ok: false, reason: "no-open-method", verified: false };
-  } catch (e) {
-    return { ok: false, reason: String(e?.message || e), verified: false };
+  if (im && key && !key.startsWith("dom:")) {
+    method = "sdk";
+    try {
+      if (typeof im.ensureConversation === "function") await im.ensureConversation(key);
+      else if (typeof im.openConversation === "function") await im.openConversation(key);
+    } catch (e) {
+      method = "sdk-failed";
+    }
+    await new Promise((r) => setTimeout(r, 800));
   }
 
-  await new Promise((r) => setTimeout(r, 800));
-  let { currentId, currentName } = readCurrent();
-  if (!idsMatch(currentId, key)) {
-    method = "dom_click";
-    clickSidebar();
-    await new Promise((r) => setTimeout(r, 900));
-    ({ currentId, currentName } = readCurrent());
+  let check = verifySwitch();
+  if (!check.verified && customerName) {
+    method = method === "sdk" ? "sdk+dom" : "dom";
+    const click = utils?.clickSessionRow?.({
+      buyerName: customerName,
+      lastText,
+      rowIndex,
+    });
+    await new Promise((r) => setTimeout(r, 1200));
+    check = verifySwitch();
+    if (!check.verified && click?.ok) {
+      await new Promise((r) => setTimeout(r, 800));
+      check = verifySwitch();
+    }
   }
 
-  if (!idsMatch(currentId, key)) {
+  if (!check.verified && im && key && !key.startsWith("dom:")) {
     try {
       if (typeof im.openConversation === "function") await im.openConversation(key);
       await new Promise((r) => setTimeout(r, 700));
-      ({ currentId, currentName } = readCurrent());
-      method = "search";
+      check = verifySwitch();
+      method = "sdk-retry";
     } catch (e) {}
   }
 
-  const pullTasks = [
-    () => im.pullMessagesByConversationId?.(key),
-    () => im.getHistoryMessages?.({ conversationId: key, limit: 30 }),
-  ];
-  for (const task of pullTasks) {
-    try {
-      await task?.();
-    } catch (e) {}
+  if (im && key && !key.startsWith("dom:")) {
+    const pullTasks = [
+      () => im.pullMessagesByConversationId?.(key),
+      () => im.getHistoryMessages?.({ conversationId: key, limit: 30 }),
+    ];
+    for (const task of pullTasks) {
+      try {
+        await task?.();
+      } catch (e) {}
+    }
   }
 
-  const verified = idsMatch(currentId, key);
-  const inputOk = inputVisible();
+  const { verified, currentId, currentName, inputOk, nameOk, headerOk, idOk } = check;
   return {
     ok: verified,
     conversation_id: key,
@@ -137,6 +140,10 @@ async (payload) => {
     input_available: inputOk,
     current_conversation_id: currentId,
     current_customer_name: currentName,
+    header_name: utils?.pickHeaderTitle?.() || "",
+    name_ok: nameOk,
+    header_ok: headerOk,
+    id_ok: idOk,
     reason: verified ? "ok" : "conversation_mismatch",
   };
-}
+};

@@ -312,6 +312,27 @@
   };
 
   const collectDomMessages = () => {
+    const feige = window.__feigeMessageUtils?.collectFeigeChatMessages?.();
+    if (feige && feige.length) {
+      const title = pickCustomerName();
+      return {
+        customer_name: title.name,
+        selector_profile: {
+          title: title.profile,
+          list: "msgItemWrap",
+          item: "messageNotMe/messageIsMe",
+          source: "dom-feige",
+        },
+        messages: feige.map((m) => ({
+          role: m.role,
+          text: m.text,
+          time: m.time_text || "",
+          message_id: `dom:${m.role}:${m.text.slice(0, 48)}`,
+          source: "dom",
+        })),
+      };
+    }
+
     const title = pickCustomerName();
     const list = pickListRoot();
     scrollChatIntoView(list.root);

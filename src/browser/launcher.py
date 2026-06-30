@@ -65,12 +65,16 @@ class BrowserLauncher:
 
     def _score_feige_page(self, page: Page) -> int:
         url = page.url or ""
+        if "127.0.0.1" in url or "localhost" in url or ":8799" in url:
+            return -1000
         score = 0
         if "im.jinritemai.com" in url:
             score += 100
         elif "jinritemai.com" in url:
             score += 50
-        if "workspace" in url or "/main" in url:
+        if "/pc_seller_v2/main" in url or "/main/workspace" in url:
+            score += 30
+        elif "workspace" in url or "/main" in url:
             score += 20
         return score
 

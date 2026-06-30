@@ -247,6 +247,25 @@ class FeigeNavigator:
 
     async def _click_name_in_frame(self, frame: Frame, name: str) -> bool:
         try:
+            # Prefer sidebar session rows (narrow left panel)
+            for span in await frame.locator(".list_items span, [class*='list_items'] span").all():
+                try:
+                    text = (await span.inner_text(timeout=500)).strip()
+                except PlaywrightTimeoutError:
+                    continue
+                if text != name:
+                    continue
+                box = await span.bounding_box()
+                if box and box["x"] > 320:
+                    continue
+                click_target = span.locator(
+                    "xpath=ancestor::*[contains(@class,'auxo-dropdown-trigger') or contains(@class,'Zp7bklk')][1]"
+                )
+                if await click_target.count() == 0:
+                    click_target = span.locator("xpath=ancestor::div[1]")
+                await click_target.first.click(timeout=3000)
+                return True
+
             exact = frame.get_by_text(name, exact=True)
             if await exact.count() > 0:
                 await exact.first.click(timeout=3000)
